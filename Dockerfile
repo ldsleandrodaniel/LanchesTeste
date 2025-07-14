@@ -10,3 +10,5 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app .
 ENTRYPOINT ["dotnet", "Lanches.dll"]
+# Exponha a porta 80 (ajuste se usar outra)
+EXPOSE 80
