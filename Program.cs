@@ -1,22 +1,3 @@
-/* antigo startup
- * namespace Lanches;
-
-
-public class Program
-{
-    public static void Main(string[] args)
-    { 
-        CreateHostBuilder(args).Build().Run();  
-    }
-
-    public static IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args)
-        .ConfigureWebHostDefaults(webBuilder =>
-        {
-            webBuilder.UseStartup<Startup>();
-        });
-}  */
-
 using Lanches.Areas.Admin.Services;
 using Lanches.Context;
 using Lanches.Models;
@@ -29,16 +10,24 @@ using ReflectionIT.Mvc.Paging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+// Configuração crítica para o Render
+if (!OperatingSystem.IsLinux())
+{
+    builder.WebHost.UseUrls("http://*:5000", "https://*:5001");
+}
 
+// Configuração do PostgreSQL
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 var connection = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
-           options.UseNpgsql(connection));
+    options.UseNpgsql(connection, o => o.EnableRetryOnFailure()));
 
+// Configuração de Identity
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
-            .AddEntityFrameworkStores<AppDbContext>()
-            .AddDefaultTokenProviders();
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
 
+// Configurações de serviços
 builder.Services.Configure<ConfigurationImagens>(builder.Configuration
     .GetSection("ConfigurationPastaImagens"));
 
@@ -49,18 +38,16 @@ builder.Services.AddScoped<ISeedUserRoleInitial, SeedUserRoleInitial>();
 builder.Services.AddScoped<RelatorioVendasService>();
 builder.Services.AddScoped<GraficoVendasService>();
 
+// Configuração de autorização
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Admin",
-        politica =>
-        {
-            politica.RequireRole("Admin");
-        });
+        politica => politica.RequireRole("Admin"));
 });
 
+// Configurações adicionais
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 builder.Services.AddScoped(sp => CarrinhoCompra.GetCarrinho(sp));
-
 builder.Services.AddControllersWithViews();
 
 builder.Services.AddPaging(options =>
@@ -72,9 +59,9 @@ builder.Services.AddPaging(options =>
 builder.Services.AddMemoryCache();
 builder.Services.AddSession();
 
-
 var app = builder.Build();
 
+// Configuração do ambiente
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -84,42 +71,28 @@ else
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
-app.UseHttpsRedirection();
 
+// Middlewares
+app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 
+// Aplicar migrations automaticamente (apenas em produção)
+if (!app.Environment.IsDevelopment())
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate();
+    }
+}
+
 CriarPerfisUsuarios(app);
-
-////cria os perfis
-//seedUserRoleInitial.SeedRoles();
-////cria os usu�rios e atribui ao perfil
-//seedUserRoleInitial.SeedUsers();
-
 app.UseSession();
-
 app.UseAuthentication();
 app.UseAuthorization();
 
-/*
-app.UseEndpoints(endpoints =>
-    {
-        endpoints.MapControllerRoute(
-         name: "areas",
-         pattern: "{area:exists}/{controller=Admin}/{action=Index}/{id?}");
-
-        endpoints.MapControllerRoute(
-           name: "categoriaFiltro",
-           pattern: "Lanche/{action}/{categoria?}",
-           defaults: new { Controller = "Lanche", action = "List" });
-
-        endpoints.MapControllerRoute(
-            name: "default",
-            pattern: "{controller=Home}/{action=Index}/{id?}");
-    });
-*/
-
-// Configura��o das rotas (substituindo o UseEndpoints por MapControllerRoute)
+// Configuração de rotas
 app.MapControllerRoute(
     name: "areas",
     pattern: "{area:exists}/{controller=Admin}/{action=Index}/{id?}");
@@ -133,8 +106,6 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-
-
 app.Run();
 
 void CriarPerfisUsuarios(WebApplication app)
@@ -143,7 +114,7 @@ void CriarPerfisUsuarios(WebApplication app)
     using (var scope = scopedFactory.CreateScope())
     {
         var service = scope.ServiceProvider.GetService<ISeedUserRoleInitial>();
-        service.SeedUsers();
         service.SeedRoles();
+        service.SeedUsers();
     }
 }
