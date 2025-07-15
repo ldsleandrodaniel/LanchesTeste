@@ -1,5 +1,5 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="pt-br">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,72 +7,97 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Lanches.styles.css" asp-append-version="true" />
+    <style>
+        /* Estilos mobile personalizados */
+        @@media (max-width: 992px) {
+            .navbar-brand {
+                font-size: 1.1rem;
+            }
+            
+            .navbar-brand img {
+                height: 25px !important;
+            }
+            
+            .search-box {
+                min-width: 100% !important;
+                margin: 10px 0 !important;
+            }
+            
+            .nav-spacing {
+                margin-right: 0 !important;
+                margin-bottom: 8px;
+            }
+        }
+        
+        @@media (max-width: 576px) {
+            .navbar-collapse {
+                padding: 10px 0;
+            }
+            
+            .input-group {
+                flex-wrap: nowrap;
+            }
+            
+            .input-group input {
+                font-size: 14px;
+            }
+        }
+    </style>
 </head>
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark bg-dark border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom box-shadow mb-3">
             <div class="container">
-                <!-- 1. Logo e Nome Lanches - com margem à direita maior -->
-                <a class="navbar-brand me-5" asp-area="" asp-controller="Home" asp-action="Index">
+                <a class="navbar-brand me-4" asp-area="" asp-controller="Home" asp-action="Index">
                     <img src="~/images/lanchemac2.png" alt="Logo LanchesMac" style="height: 30px; margin-right: 10px;">
                     Lanches
                 </a>
-
-                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
+                
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" 
+                        aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
 
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <!-- 2. Link "Lanches" - com margem à direita -->
-                        <li class="nav-item me-4">
+                <div class="collapse navbar-collapse" id="navbarCollapse">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item nav-spacing me-3">
                             <a class="nav-link text-light" asp-controller="Lanche" asp-action="List">Lanches</a>
                         </li>
 
-                        <!-- 3. Barra de tipos - com margem à direita -->
-                        <li class="nav-item me-4">
+                        <li class="nav-item nav-spacing me-3">
                             @await Component.InvokeAsync("CategoriaMenu")
                         </li>
 
-                        <!-- 4. Pesquisa de lanches - com margem à direita e largura fixa -->
-                        <li class="nav-item me-4" style="min-width: 250px;">
+                        <li class="nav-item search-box me-3" style="min-width: 250px;">
                             <form class="form-inline" asp-controller="Lanche" asp-action="Search" method="get">
                                 <div class="input-group">
-                                    <input type="text" class="form-control" placeholder="Procurar lanche" name="searchString" value="@ViewData["searchString"]">
-                                    <div class="input-group-append">
-                                        <button class="btn btn-outline-light" type="submit">Buscar</button>
-                                    </div>
+                                    <input type="text" class="form-control" placeholder="Procurar lanche..." name="searchString" value="@ViewData["searchString"]">
+                                    <button class="btn btn-outline-light" type="submit">Buscar</button>
                                 </div>
                             </form>
                         </li>
 
-                        <!-- 5. Contato - com margem à direita -->
-                        <li class="nav-item me-4">
+                        <li class="nav-item nav-spacing me-3">
                             <a class="nav-link text-light" asp-controller="Contato" asp-action="Index">Contato</a>
                         </li>
 
-                        <!-- 6. Home - com margem à direita -->
-                        <li class="nav-item me-4">
+                        <li class="nav-item nav-spacing me-3">
                             <a class="nav-link text-light" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
                     </ul>
 
                     <ul class="navbar-nav">
-                        <!-- 7. Login e Registro - com margem à direita -->
-                        <li class="nav-item me-3">
+                        <li class="nav-item me-2 mb-2 mb-lg-0">
                             @await Html.PartialAsync("_LoginPartial")
                         </li>
 
-                        <!-- 8. Carrinho de compras - com margem à direita -->
-                        <li class="nav-item me-3">
+                        <li class="nav-item me-2 mb-2 mb-lg-0">
                             @await Component.InvokeAsync("CarrinhoCompraResumo")
                         </li>
 
-                        <!-- 9. Link Admin (se aplicável) -->
                         @if (User.IsInRole("Admin"))
                         {
-                            <li class="nav-item">
+                            <li class="nav-item mb-2 mb-lg-0">
                                 <a class="nav-link text-light" asp-area="Admin" asp-controller="Admin" asp-action="Index">Admin</a>
                             </li>
                         }
@@ -80,7 +105,6 @@
                 </div>
             </div>
         </nav>
-        
     </header>
 
     <div class="container">
@@ -89,20 +113,31 @@
         </main>
     </div>
 
-    @* @<footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2025 - Lanches - <a asp-area="" asp-controller="Home" ></a>
-        </div>
-    </footer> *@
-
     <partial name="_Footer" />
-
-
-
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // Melhoria para o menu mobile
+        document.addEventListener('DOMContentLoaded', function() {
+            const navbarToggler = document.querySelector('.navbar-toggler');
+            const navbarCollapse = document.querySelector('.navbar-collapse');
+            
+            navbarToggler.addEventListener('click', function() {
+                navbarCollapse.classList.toggle('show');
+            });
+            
+            // Fecha o menu ao clicar em um item (melhor experiência mobile)
+            document.querySelectorAll('.nav-link').forEach(item => {
+                item.addEventListener('click', function() {
+                    if(window.innerWidth < 992) {
+                        navbarCollapse.classList.remove('show');
+                    }
+                });
+            });
+        });
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
