@@ -11,25 +11,50 @@ using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
-if (string.IsNullOrEmpty(builder.Configuration.GetConnectionString("DefaultConnection")))
+// ===============================================
+// CONFIGURAÇÕES INICIAIS COM TRATAMENTO DE ERROS
+// ===============================================
+
+// Debug: Mostrar todas as configurações carregadas
+Console.WriteLine("=== CONFIGURAÇÕES CARREGADAS ===");
+Console.WriteLine(builder.Configuration.GetDebugView());
+
+// Validação aprimorada da connection string
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrEmpty(connectionString))
 {
-    throw new Exception("❌ ConnectionString não configurada! Defina 'ConnectionStrings__DefaultConnection' no Render.");
+    connectionString = builder.Configuration["POSTGRES_CONNECTION_STRING"] 
+        ?? throw new Exception("""
+            ERRO: ConnectionString não configurada!
+            Defina UMA dessas variáveis no Render:
+            1. ConnectionStrings__DefaultConnection
+            2. POSTGRES_CONNECTION_STRING
+            Formato: Server=...;Port=5432;Database=...;User Id=...;Password=...;
+            """);
 }
 
-// Configuração para o Render (REMOVA a configuração de UseUrls)
-// if (!OperatingSystem.IsLinux()) // REMOVER ESTE BLOCO
-// {
-//     builder.WebHost.UseUrls("http://*:5000", "https://*:5001");
-// }
-
-// Configuração do PostgreSQL
+// Configuração do PostgreSQL com resiliência
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-var connection = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connection, o => o.EnableRetryOnFailure()));
+{
+    options.UseNpgsql(connectionString, o => 
+    {
+        o.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null);
+    });
+    
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableDetailedErrors();
+        options.EnableSensitiveDataLogging();
+    }
+});
 
 // Configuração de proxy para o Render
-builder.Services.Configure<ForwardedHeadersOptions>(options => {
+builder.Services.Configure<ForwardedHeadersOptions>(options => 
+{
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
@@ -41,13 +66,14 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddDefaultTokenProviders();
 
 // Configurações de cookies para o Render
-builder.Services.ConfigureApplicationCookie(options => {
+builder.Services.ConfigureApplicationCookie(options => 
+{
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Alterado para Always
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.HttpOnly = true;
 });
 
-// Configurações de serviços (mantenha os existentes)
+// Configurações de serviços
 builder.Services.Configure<ConfigurationImagens>(builder.Configuration
     .GetSection("ConfigurationPastaImagens"));
 
@@ -58,7 +84,8 @@ builder.Services.AddScoped<ISeedUserRoleInitial, SeedUserRoleInitial>();
 builder.Services.AddScoped<RelatorioVendasService>();
 builder.Services.AddScoped<GraficoVendasService>();
 
-builder.Services.AddAuthorization(options => {
+builder.Services.AddAuthorization(options => 
+{
     options.AddPolicy("Admin", politica => politica.RequireRole("Admin"));
 });
 
@@ -66,40 +93,67 @@ builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 builder.Services.AddScoped(sp => CarrinhoCompra.GetCarrinho(sp));
 builder.Services.AddControllersWithViews();
 
-builder.Services.AddPaging(options => {
+builder.Services.AddPaging(options => 
+{
     options.ViewName = "Bootstrap4";
     options.PageParameterName = "pageindex";
 });
 
 builder.Services.AddMemoryCache();
-builder.Services.AddSession(options => {
+builder.Services.AddSession(options => 
+{
     options.Cookie.IsEssential = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
-// REMOVA a configuração de HTTPS Redirection do builder
-// builder.Services.AddHttpsRedirection(options => {
-//     options.HttpsPort = 443;
-// });
-
 var app = builder.Build();
 
-// Middleware de proxy DEVE vir primeiro
+// ===============================================
+// MIDDLEWARE PIPELINE
+// ===============================================
+
+// Validação EXTRA da conexão com o banco
+if (!app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    
+    try
+    {
+        Console.WriteLine("Testando conexão com o banco...");
+        if (!db.Database.CanConnect())
+        {
+            throw new Exception("Não foi possível conectar ao banco de dados");
+        }
+        Console.WriteLine("Conexão com o banco estabelecida com sucesso!");
+    }
+    catch (Exception ex)
+    {
+        throw new Exception("FALHA NA CONEXÃO COM O BANCO: " + ex.Message);
+    }
+}
+
+// Middleware de proxy
 app.UseForwardedHeaders();
 
 // Middleware para corrigir esquema
-app.Use((context, next) => {
-    if (context.Request.Headers["X-Forwarded-Proto"] == "https") {
+app.Use((context, next) => 
+{
+    if (context.Request.Headers["X-Forwarded-Proto"] == "https") 
+    {
         context.Request.Scheme = "https";
     }
     return next();
 });
 
 // Configuração do ambiente
-if (app.Environment.IsDevelopment()) {
+if (app.Environment.IsDevelopment()) 
+{
     app.UseDeveloperExceptionPage();
-} else {
+} 
+else 
+{
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
@@ -109,20 +163,31 @@ app.UseStaticFiles();
 app.UseRouting();
 
 // Aplicar migrations automaticamente
-if (!app.Environment.IsDevelopment()) {
-    using (var scope = app.Services.CreateScope()) {
+if (!app.Environment.IsDevelopment()) 
+{
+    using (var scope = app.Services.CreateScope()) 
+    {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
+        try
+        {
+            db.Database.Migrate();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERRO NAS MIGRAÇÕES: {ex.Message}");
+            throw;
+        }
     }
 }
+
+// Rota de debug (remova em produção)
+app.MapGet("/debug-config", () => 
+    Results.Text(builder.Configuration.GetDebugView(), "text/plain"));
 
 CriarPerfisUsuarios(app);
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
-
-// COMENTE temporariamente o HTTPS Redirection
-// app.UseHttpsRedirection();
 
 // Configuração de rotas
 app.MapControllerRoute(
@@ -140,11 +205,24 @@ app.MapControllerRoute(
 
 app.Run();
 
-void CriarPerfisUsuarios(WebApplication app) {
-    var scopedFactory = app.Services.GetService<IServiceScopeFactory>();
-    using (var scope = scopedFactory.CreateScope()) {
-        var service = scope.ServiceProvider.GetService<ISeedUserRoleInitial>();
-        service.SeedRoles();
-        service.SeedUsers();
+// ===============================================
+// MÉTODOS AUXILIARES
+// ===============================================
+
+void CriarPerfisUsuarios(WebApplication app) 
+{
+    try
+    {
+        var scopedFactory = app.Services.GetService<IServiceScopeFactory>();
+        using (var scope = scopedFactory.CreateScope()) 
+        {
+            var service = scope.ServiceProvider.GetService<ISeedUserRoleInitial>();
+            service.SeedRoles();
+            service.SeedUsers();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"ERRO AO CRIAR PERFIS: {ex.Message}");
     }
 }
