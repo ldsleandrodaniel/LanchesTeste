@@ -11,6 +11,11 @@ using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (string.IsNullOrEmpty(builder.Configuration.GetConnectionString("DefaultConnection")))
+{
+    throw new Exception("❌ ConnectionString não configurada! Defina 'ConnectionStrings__DefaultConnection' no Render.");
+}
+
 // Configuração para o Render (REMOVA a configuração de UseUrls)
 // if (!OperatingSystem.IsLinux()) // REMOVER ESTE BLOCO
 // {
