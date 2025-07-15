@@ -2,24 +2,23 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# 1. Copia apenas o .csproj primeiro (para cache eficiente)
+# 1. Copia arquivos necessários
 COPY ["*.csproj", "."]
 RUN dotnet restore "Lanches.csproj"
 
-# 2. Copia todo o resto
+# 2. Copia o resto
 COPY . .
 
-# 3. Publica com runtime específico
+# 3. Publica o projeto
 RUN dotnet publish "Lanches.csproj" -c Release -o /app \
-    --runtime linux-x64 \
-    --self-contained false \
-    --no-restore
+    -p:RuntimeIdentifier=linux-x64 \
+    --self-contained false
 
 # Estágio de runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
-# 4. Instala dependências para PostgreSQL e libgdiplus
+# 4. Instala dependências para PostgreSQL
 RUN apt-get update && \
     apt-get install -y libgdiplus && \
     apt-get clean && \
@@ -33,5 +32,5 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # 6. Copia os arquivos publicados
 COPY --from=build /app .
 
-# 7. Entrypoint otimizado
+# 7. Entrypoint
 ENTRYPOINT ["dotnet", "Lanches.dll"]
