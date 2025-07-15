@@ -58,6 +58,10 @@ builder.Services.AddPaging(options =>
 
 builder.Services.AddMemoryCache();
 builder.Services.AddSession();
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.HttpsPort = 443;
+});
 
 var app = builder.Build();
 
