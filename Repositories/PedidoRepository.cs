@@ -1,7 +1,6 @@
-using Microsoft.EntityFrameworkCore; // Adicione esta using
-using System; 
 using Lanches.Context;
 using Lanches.Models;
+using Lanches.Repositories.Interfaces;
 
 namespace Lanches.Repositories
 {
