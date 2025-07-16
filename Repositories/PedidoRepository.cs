@@ -1,6 +1,7 @@
-﻿using Lanches.Context;
+using Microsoft.EntityFrameworkCore; // Adicione esta using
+using System; 
+using Lanches.Context;
 using Lanches.Models;
-using Lanches.Repositories.Interfaces;
 
 namespace Lanches.Repositories
 {
@@ -17,21 +18,35 @@ namespace Lanches.Repositories
 
         public void CriarPedido(Pedido pedido)
         {
-            pedido.PedidoEnviado= DateTime.UtcNow;
-            _appDbContext.Pedidos.Add(pedido);
-            _appDbContext.SaveChanges();
-            var carrinhoCompraItens = _carrinhoCompra.CarrinhoCompraItems;
-            foreach (var carrinhoItem in carrinhoCompraItens) 
-            {
-                var pedidoDetail = new PedidoDetalhe()
-                {
-                    Quantidade = carrinhoItem.Quantidade,
-                    LancheId = carrinhoItem.Lanche.LancheId,
-                    PedidoId = pedido.PedidoId,
-                    Preco = carrinhoItem.Lanche.Preco
-                };
-                _appDbContext.PedidoDetalhes.Add(pedidoDetail);
+            // Usar transaction para garantir que tudo seja salvo ou nada
+            using var transaction = _appDbContext.Database.BeginTransaction();
             
+            try
+            {
+                pedido.PedidoEnviado = DateTime.Now; // Evite UtcNow para PostgreSQL
+                _appDbContext.Pedidos.Add(pedido);
+                _appDbContext.SaveChanges(); // Salva o pedido primeiro para gerar o ID
+
+                // Adiciona os itens do carrinho
+                foreach (var carrinhoItem in _carrinhoCompra.CarrinhoCompraItems)
+                {
+                    var pedidoDetail = new PedidoDetalhe()
+                    {
+                        Quantidade = carrinhoItem.Quantidade,
+                        LancheId = carrinhoItem.Lanche.LancheId,
+                        PedidoId = pedido.PedidoId, // Agora o PedidoId já existe
+                        Preco = carrinhoItem.Lanche.Preco
+                    };
+                    _appDbContext.PedidoDetalhes.Add(pedidoDetail);
+                }
+
+                _appDbContext.SaveChanges(); // Salva os itens
+                transaction.Commit(); // Confirma a transação
+            }
+            catch
+            {
+                transaction.Rollback(); // Em caso de erro, desfaz tudo
+                throw; // Re-lança a exceção para ser tratada no Controller
             }
         }
     }
